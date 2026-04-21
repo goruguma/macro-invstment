@@ -142,12 +142,19 @@ def get_put_call_ratio():
 
 # ---------- Sidebar ----------
 st.sidebar.title("⚙️ Settings")
-fred_key = st.sidebar.text_input("FRED API Key", type="password")
+
+# 1) Streamlit Secrets에 FRED_API_KEY가 있으면 우선 사용
+# 2) 없으면 사이드바 입력값 사용
+secret_key = st.secrets.get("FRED_API_KEY", "")
+manual_key = st.sidebar.text_input("FRED API Key", type="password")
+fred_key = secret_key or manual_key
 
 st.sidebar.caption("매일 아침 확인용 대시보드 · 데이터 캐시 1시간")
+if secret_key:
+    st.sidebar.success("FRED API Key: Streamlit Secrets에서 로드됨")
 
 if not fred_key:
-    st.warning("FRED API Key를 입력해 주세요.")
+    st.warning("FRED API Key를 입력해 주세요. (Secrets 또는 사이드바 입력)")
     st.stop()
 
 # ---------- Fetch ----------
