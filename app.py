@@ -28,24 +28,29 @@ COLORS = {
 def get_fred_data(api_key: str):
     fred = Fred(api_key=api_key)
 
-    nfci = fred.get_series(
+    def safe_series(series_id: str, **kwargs):
+        try:
+            return fred.get_series(series_id, **kwargs)
+        except ValueError:
+            return pd.Series(dtype=float)
+
+    nfci = safe_series(
         "NFCI",
         observation_start=(datetime.now() - timedelta(days=365 * 10)),
     )
 
-    bull = fred.get_series("AAIIBULL")
-    bear = fred.get_series("AAIIBEAR")
-    neutral = fred.get_series("AAIINEUT")
+    # AAII 시리즈는 FRED에서 AAIIR* 코드 사용
+    bull = safe_series("AAIIRBULL")
+    bear = safe_series("AAIIRBEAR")
+    neutral = safe_series("AAIIRNEUT")
 
-    sentiment = (
-        pd.DataFrame({"Bullish": bull, "Bearish": bear, "Neutral": neutral})
-        .dropna()
-        .tail(1)
-        .T
-        .rename(columns=lambda _: "Latest")
-    )
+    sentiment_raw = pd.DataFrame({"Bullish": bull, "Bearish": bear, "Neutral": neutral}).dropna()
+    if sentiment_raw.empty:
+        sentiment = pd.DataFrame({"Latest": [0.0, 0.0, 0.0]}, index=["Bullish", "Bearish", "Neutral"])
+    else:
+        sentiment = sentiment_raw.tail(1).T.rename(columns=lambda _: "Latest")
 
-    hy_spread = fred.get_series(
+    hy_spread = safe_series(
         "BAMLH0A0HYM2",
         observation_start=(datetime.now() - timedelta(days=365 * 2)),
     ).dropna()
@@ -162,6 +167,13 @@ nfci, sentiment, hy_spread = get_fred_data(fred_key)
 sector_df = get_sector_data()
 fg = get_cnn_fear_greed()
 put_call = get_put_call_ratio()
+
+if nfci.empty:
+    st.warning("NFCI 데이터를 불러오지 못했습니다. FRED API Key 권한/상태를 확인해 주세요.")
+if hy_spread.empty:
+    st.warning("하이일드 스프레드 데이터를 불러오지 못했습니다.")
+if sentiment["Latest"].sum() == 0:
+    st.warning("AAII 투자심리 데이터를 불러오지 못했습니다. (시리즈 코드/권한 확인)")
 
 
 # ---------- Header ----------
